@@ -1,18 +1,22 @@
 import tensorflow as tf
-
-from flask import Flask
+from sanic import Sanic
+from sanic.response import json
 
 print('TF version: ', tf.__version__)
 
-app = Flask(__name__)
 
+app = Sanic(name='multi-label text classifier')
 PORT = 8282
+DEBUG = True
+
+@app.route('/')
+async def test(request):
+    return json({'hello': 'world.'})
+
 
 @app.route('/classify')
-def classify_text():
-    return 'Hey, we have Flask in a Docker container!'
-
+def classify_text(request):
+    return json({'message': 'prediction'})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=PORT)
-
+    app.run(debug=DEBUG, host='0.0.0.0', port=PORT)
