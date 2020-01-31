@@ -1,6 +1,10 @@
 # multi-label-text-classification
 Python server with Tensorflow 2.0 for multi label text classification
 
+### Start Training
+#### Set bert-keras envs
+``export TF_KERAS=1``
+
 ### Docker build image
 ``sudo docker build -t text-classify:latest .``
 
