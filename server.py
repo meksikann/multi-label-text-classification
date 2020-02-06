@@ -1,7 +1,7 @@
 from sanic import Sanic
-from sanic.response import json
+from sanic.response import json, text
 
-from classifier.train import start_training
+from classifier.train import predict
 
 app = Sanic(name='multi-label text classifier')
 
@@ -28,7 +28,12 @@ def train_predictor(request):
 
 @app.route('/classify', methods=['POST'])
 def classify_text(request):
-    return json({'message': 'prediction'})
+    body = request.json
+    print(body)
+
+    res = predict(body['text'])
+
+    return text(res)
 
 if __name__ == '__main__':
     app.run(debug=DEBUG, host='0.0.0.0', port=PORT)

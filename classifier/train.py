@@ -9,8 +9,8 @@ DATASET_COLUMNS = ['Sentiment_Score', 'ID', 'Time', 'Query_Status', 'Account_Nam
 DATASET_ENCODING = "ISO-8859-1"
 TEXT_CLEANING_RE = "@\S+|https?:\S+|http?:\S|[^A-Za-z0-9]+"
 PICKLE_VECTORS = 'vectors.pkl'
-LEARNENR_PATH = 'learner.pth'
-MODEL_PATH = 'model.pkl'
+LEARNENR_PATH = 'learner'
+MODEL_PATH = 'export.pkl'
 dir_path = path.dirname(path.realpath(__file__))
 
 
@@ -24,11 +24,13 @@ def prepare_vectors():
 
     df = pd.read_csv(training_set_path, encoding=DATASET_ENCODING , names=DATASET_COLUMNS)
 
-    print(df.head(5))
+    df = df.iloc[np.random.permutation(len(df))]
+
+    df = df[:500]
+    print(df.info)
+    cut1 = int(0.8 * len(df)) + 1
 
     # split dataset on 80/20
-    df = df.iloc[np.random.permutation(len(df))]
-    cut1 = int(0.8 * len(df)) + 1
     df_train, df_valid = df[:cut1], df[cut1:]
 
     # create language model data bunch with vector representation of all unique words as tokens
@@ -63,17 +65,19 @@ def prepare_vectors():
     # find good learning rate
     model.lr_find()
 
-    model.recorder.plot(suggestion=True)
+    # model.recorder.plot(suggestion=True)
 
-    model.export(path.join(dir_path, 'data', MODEL_PATH))
+    model.export(path.join(dir_path, 'models', MODEL_PATH))
 
 
-def predict():
-    text = 'hello this is very cool'
-    model = load_learner(path.join(dir_path, 'data', MODEL_PATH))
+def predict(text):
+    model = load_learner(path.join(dir_path, 'models'))
     pred = model.predict(text)
 
     print(pred)
+
+    return pred
+
 
 if __name__ == '__main__':
     prepare_vectors()

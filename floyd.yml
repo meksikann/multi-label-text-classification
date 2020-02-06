@@ -1,10 +1,10 @@
 # see: https://docs.floydhub.com/floyd_config
 # All supported configs:
 #
-machine: cpu
+machine: gpu
 env: pytorch-1.4
 input:
-  - destination: trainingcsv
+  - destination: classifier.data
     source: serhiyskoromets/datasets/twitter/1
 
 description: this is a tes
