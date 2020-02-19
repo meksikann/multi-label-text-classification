@@ -13,6 +13,7 @@ DATASET_ENCODING = "ISO-8859-1"
 TEXT_CLEANING_RE = "@\S+|https?:\S+|http?:\S|[^A-Za-z0-9]+"
 TEMP_LM_NAME = 'temp_lm'
 LEARNER_NAME = 'learner'
+LEARNER_ENCODER_NAME = 'learner'
 MODEL_PATH = 'export.pkl'
 dir_path = path.dirname(path.realpath(__file__))
 X_COL = 'text'
@@ -53,6 +54,9 @@ def prepare_vectors():
 
     training_set_path = path.join(dir_path, 'data', training_set_name)
     temp_lm_path = path.join(dir_path, 'data', TEMP_LM_NAME)
+    learn_head_path = path.join(dir_path, 'models', 'fit_head')
+    learn_lm_path = path.join(dir_path, 'models', LEARNER_NAME)
+    learn_encoder_path = path.join(dir_path, 'models', LEARNER_ENCODER_NAME)
     model_path = path.join(dir_path, 'models', MODEL_PATH)
 
     # paste dataset into data directory and name it training.csv
@@ -74,7 +78,7 @@ def prepare_vectors():
 
     # create small(micro) dataset to simulate real world situation, where no big dataset available in the company
 
-    micro_df = df[:20]
+    micro_df = df[:200]
     # split on train test datasets
     split_v = int(0.6 * len(micro_df)) + 1
 
@@ -104,8 +108,26 @@ def prepare_vectors():
 
     learn_lm = language_model_learner(data_lm, AWD_LSTM, drop_mult=0.2)
     learn_lm.lr_find()
-    learn_lm.recorder.plot(skip_end=10)
+    learn_lm.recorder.plot()
 
+    learn_lm.fit_one_cycle(1, 1e-2, moms=(0.8, 0.7))
+
+    # save trained learner
+    learn_lm.save(learn_head_path)
+    learn_lm.load(learn_head_path)
+
+    # learn other layers
+    learn_lm.unfreeze()
+    learn_lm.fit_one_cycle(10, 1e-3, moms=(0.8, 0.7))
+
+    # plot learning results
+    learn_lm.recorder.plot_losses()
+
+    # save trained learner and encoder
+    learn_lm.save(learn_lm_path)
+    learn_lm.save_encoder(learn_encoder_path)
+
+    
 
     # CASE2 - create LM with TextLMDataBunch
     # # create language model data bunch with vector representation of all unique words as tokens
