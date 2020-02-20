@@ -4,3 +4,13 @@
 *.json
 /classifier/data/temp_lm
 /classifier/models/temp_lm
+/classifier/data/learner.pth
+/classifier/data/models/fine_tuned.pth
+/classifier/data/models/fine_tuned_enc.pth
+/classifier/data/models/first_factors.pth
+/classifier/data/models/fit_head.pth
+/classifier/data/models/second_factors.pth
+/classifier/data/models/tmp.pth
+/classifier/data/tmp_class
+/classifier/data/tmp_lm
+/classifier/models/tmp.pth
