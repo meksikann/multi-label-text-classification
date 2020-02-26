@@ -7,7 +7,8 @@ import json
 from pandas import json_normalize
 from sklearn.utils import shuffle
 from fastprogress.fastprogress import IN_NOTEBOOK
-IN_NOTEBOOK=True
+
+IN_NOTEBOOK = True
 
 training_set_name = 'ml_class.json'
 DATASET_COLUMNS = ['Sentiment_Score', 'ID', 'Time', 'Query_Status', 'Account_Name', 'Tweet']
@@ -55,7 +56,8 @@ Training JSON data should be next format
     ]
 }
 '''
-MIN_AMOUNT = 9
+MIN_AMOUNT = 10
+
 
 # method to make balansed set
 def sampling_k_elements(group, k=MIN_AMOUNT):
@@ -81,6 +83,7 @@ def prepare_vectors():
     print('TF_KERAS:', os.environ.get('TF_KERAS'))
 
     my_path = Path('data')
+    print(my_path.ls())
 
     training_set_path = path.join(dir_path, 'data', training_set_name)
 
@@ -95,13 +98,14 @@ def prepare_vectors():
 
     # # concat labels to one string with delimiter by single char '|' to allow compatibility with fastai
     lm_df[Y_COL] = lm_df[Y_COL].str.join(sep=SEPARATOR)
+    # change columns order
+    lm_df = lm_df[[Y_COL, X_COL]]
 
     # show labels count to see if data balanced
     print(' *************************** See classes balance *****************************')
 
     print(lm_df[Y_COL].value_counts())
     print(' ****************************************************************************')
-
 
     # shuffle data
     if DO_SHUFFLE:
@@ -116,7 +120,6 @@ def prepare_vectors():
     print(micro_df)
     print(micro_df[Y_COL].value_counts())
     print(' ********************************************************************************')
-
 
     # split on train test datasets
     split_v = int(VAL_PERC * len(micro_df)) + 1
@@ -139,144 +142,59 @@ def prepare_vectors():
     # CASE1 - create LM with TextList
 
     print('Create Language Model from NOT LABELED dataset')
-    # data_lm = (TextList.from_df(lm_df, path=my_path, cols=X_COL)
-    #            .split_by_rand_pct(0.1)
-    #            .label_for_lm()
-    #            .databunch(bs=BATCH_SIZE))
 
-    # # csv_path = untar_data(URLs.IMDB_SAMPLE)
-    #
-    # data_lm = TextLMDataBunch.from_csv(URLs.IMDB_SAMPLE, 'texts.csv')
     data_lm = TextLMDataBunch.from_df(path=my_path,
                                       train_df=lm_df,
                                       valid_df=df_valid,
-                                      label_cols=Y_COL,
-                                      text_cols=X_COL
+                                      # label_cols=Y_COL,
+                                      text_cols=[X_COL]
                                       )
 
-    data_class = TextClasDataBunch.from_df(
-        path=my_path,
-        train_df=df_train,
-        valid_df=df_valid,
-        vocab=data_lm.train_ds.vocab,
-        text_cols=X_COL,
-        label_cols=Y_COL,
-        label_delim=SEPARATOR,
-        bs=32
-    )
+    print('vocab-----------------------------------------------------------')
+    print(data_lm.vocab)
+    print(data_lm)
 
+    data_class = (TextList.from_df(micro_df, my_path, cols=[X_COL, Y_COL], vocab=data_lm.vocab)
+                  .split_by_rand_pct(0.2)
+                  .label_from_df(cols=Y_COL, label_delim='|')
+                  .databunch(bs=16))
+
+    # data_class.save('tmp_multi_label_clas.pkl')
+    print(data_class)
+
+
+    # *****************************************************************************************************
     learn = language_model_learner(data_lm, AWD_LSTM, drop_mult=0.5)
-    learn.fit_one_cycle(1, 1e-2)
-    learn.unfreeze()
-    learn.fit_one_cycle(1, 1e-3)
-    learn.save_encoder('ft_enc')
 
-    learn = text_classifier_learner(data_class, AWD_LSTM, drop_mult=0.5)
-    learn.load_encoder('ft_enc')
-    learn.fit_one_cycle(1, 1e-2)
-    learn.freeze_to(-2)
-    learn.fit_one_cycle(1, slice(5e-3/2., 5e-3))
+    # train LM
+    learn.fit_one_cycle(1, 1e-1)
+    learn.unfreeze()
+    learn.fit_one_cycle(1, 1e-1)
+    print('LM Predict next words:')
+    print(learn.predict('very challenging in terms', n_words=10))
+
+    # *****************************************************************************************************
+
+    # learn CL
+    learn = text_classifier_learner(data_class, AWD_LSTM, drop_mult=0.2, metrics=[fbeta])
+
+    learn.fit_one_cycle(1, 1e-1, moms=(0.8, 0.7))
+
+    # TODO: experiment with this
+    # learn.freeze_to(-2)
+    # learn.fit_one_cycle(1, slice(5e-3 / 2., 5e-3), moms=(0.8, 0.7))
+    #
+    # learn.unfreeze()
+    # learn.fit_one_cycle(2, 1e-1, moms=(0.8, 0.7))
+    # *****************************************************************************************************
 
     TEXT = 'Very challenging in terms of target and management'
+    print('Test predict labels:')
     print(learn.predict(TEXT))
+    print(learn.predict("it's the nature of the industry"))
 
-    learn.save('final_model')
+    # learn.save('final_model')
     learn.export(path.join(dir_path, 'models', MODEL_PATH))
-
-
-
-    # print('SHow batch of LM')
-    # print(data_lm)
-    #
-    # # save LM
-    # data_lm.save('tmp_lm')
-    #
-    # print('Learn Language Model')
-    #
-    # learn_lm = language_model_learner(data_lm, AWD_LSTM, drop_mult=0.2)
-    #
-    # learn_lm.lr_find()
-    # # learn_lm.recorder.plot(suggestion=True)
-    #
-    # learn_lm.fit_one_cycle(1, 1e-1, moms=(0.8, 0.7))
-    #
-    # # save trained learner
-    # learn_lm.save('fit_head')
-    # learn_lm.load('fit_head')
-    #
-    # # learn other layers
-    # learn_lm.unfreeze()
-    # learn_lm.fit_one_cycle(10, 1e-1, moms=(0.8, 0.7))
-    #
-    # # plot learning results
-    # # learn_lm.recorder.plot_losses()
-    # print('Save Language Model')
-    #
-    # # save trained learner and encoder
-    # learn_lm.save('fine_tuned')
-    # learn_lm.save_encoder('fine_tuned_enc')
-    #
-    # '''
-    # ********************  Classifier ***********************************
-    # '''
-    # print('Build classifier')
-    # print('Load data')
-    #
-    # # class_data_lm = TextLMDataBunch.load(my_path, 'tmp_lm', bs=BATCH_SIZE)
-    # class_data_lm = load_data(my_path, 'tmp_lm', bs=BATCH_SIZE)
-    #
-    #
-    #
-    # data_class.save('tmp_class')
-    # print('Init classifier learner')
-    #
-    # learn = text_classifier_learner(data_class, AWD_LSTM, drop_mult=0.3)
-    #
-    # # define metrics
-    # # learn.metrics = [accuracy_thresh, precision, recall]
-    #
-    # learn.load_encoder('fine_tuned_enc')
-    # print('Train classifier learner')
-    #
-    # learn.lr_find()
-    # # learn.recorder.plot(suggestion=True)
-    #
-    # # learn.freeze()
-    # learn.fit_one_cycle(2, 1e-1, moms=(0.8, 0.7))
-    #
-    # # save first part trained learner
-    # learn.save('first_factors')
-    # learn.load('first_factors')
-    #
-    # learn.freeze_to(-2)
-    # learn.fit_one_cycle(2, 1e-1, moms=(0.8, 0.7), wd=0.1)
-    #
-    # learn.save('second_factors')
-    # learn.load('second_factors')
-    #
-    # # learn.unfreeze()
-    # # learn.fit_one_cycle(2, 1e-1, moms=(0.8, 0.7), wd=0.1)
-    # # print('Classifier done. Export final model.')
-    #
-    # TEXT = 'Very challenging in terms of target and management'
-    # print(learn.predict(TEXT))
-    #
-    # learn.export(path.join(dir_path, 'models', MODEL_PATH))
-
-    # Evaluate results
-    # print('Build training metrics')
-    #
-    # y_pred, y_true = learn.get_preds()
-    # from sklearn.metrics import precision_score, recall_score, accuracy_score, f1_score
-    # from sklearn.metrics import classification_report
-    # f1_score(y_true, y_pred > 0.35, average='micro')
-    # y_true = y_true.numpy()
-    # scores = y_pred.numpy()
-    #
-    # print(scores.shape, y_true.shape)
-    # metrics = classification_report(y_true, scores > 0.35, target_names=data_class.valid_ds.classes)
-    # print(metrics)
-
 
 def predict(text):
     print('Load classifier')
@@ -291,26 +209,36 @@ def predict(text):
     return pred
 
 
+def text_hipo():
+    path = untar_data(URLs.IMDB_SAMPLE)
+    print(path)
+    df = pd.read_csv(path / 'texts.csv')
+    print(df.head())
+    # Language model data
+    data_lm = TextLMDataBunch.from_csv(path, 'texts.csv')
+    # Classifier model data
+    data_clas = TextClasDataBunch.from_csv(path, 'texts.csv', vocab=data_lm.train_ds.vocab, bs=32)
+
+    learn = language_model_learner(data_lm, AWD_LSTM, drop_mult=0.5)
+    learn.fit_one_cycle(1, 1e-2)
+    learn.unfreeze()
+    learn.fit_one_cycle(1, 1e-3)
+    print('predict next words......')
+    print(learn.predict("This is a review about", n_words=10))
+    print(learn.predict("The management is good but", n_words=10))
+    learn.save_encoder('ft_enc')
+    learn = text_classifier_learner(data_clas, AWD_LSTM, drop_mult=0.5)
+    learn.load_encoder('ft_enc')
+    # print(data_clas.show_batch())
+    learn.fit_one_cycle(1, 1e-2)
+    # learn.freeze_to(-2)
+    # learn.fit_one_cycle(1, slice(5e-3 / 2., 5e-3))
+    learn.unfreeze()
+    learn.fit_one_cycle(1, slice(2e-3 / 100, 2e-3))
+    print('First pred:', learn.predict("This was a great movie!"))
+    print('Second pred: ', learn.predict("Well I am not sure about it...looks not great"))
+
+
 if __name__ == '__main__':
     prepare_vectors()
-
-# TODO: hello world example
-# path = untar_data(URLs.IMDB_SAMPLE)
-#
-# data_lm = TextLMDataBunch.from_csv(path, 'texts.csv')
-# data_clas = TextClasDataBunch.from_csv(path, 'texts.csv', vocab=data_lm.train_ds.vocab, bs=32)
-#
-# learn = language_model_learner(data_lm, AWD_LSTM, drop_mult=0.5)
-# learn.fit_one_cycle(1, 1e-2)
-# learn.unfreeze()
-# learn.fit_one_cycle(1, 1e-3)
-# learn.save_encoder('ft_enc')
-#
-# learn = text_classifier_learner(data_clas, AWD_LSTM, drop_mult=0.5)
-# learn.load_encoder('ft_enc')
-# learn.fit_one_cycle(1, 1e-2)
-# learn.freeze_to(-2)
-# learn.fit_one_cycle(1, slice(5e-3/2., 5e-3))
-# learn.save('model')
-#
-# learn.predict("This was a great movie!")
+    # text_hipo()
