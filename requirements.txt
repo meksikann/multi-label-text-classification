@@ -44,7 +44,7 @@ tensorboard==2.1.0
 tensorflow==2.1.0
 tensorflow-estimator==2.1.0
 termcolor==1.1.0
-ujson==1.35
+ujson==5.2.0
 urllib3==1.25.8
 uvloop==0.14.0
 websockets==8.1
